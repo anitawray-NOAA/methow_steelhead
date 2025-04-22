@@ -1,0 +1,133 @@
+#!/bin/bash
+#SBATCH --job-name=hap_caller_8
+#SBATCH --output=../../logs/hap_caller_8.%A.%a.log
+#SBATCH --array=1-114
+#SBATCH --exclude=node[21-28]
+#SBATCH -t 400:00:00
+#SBATCH -c 1
+#SBATCH -D /scratch2/mkardos/methowRAD/results/aligned/allSamps
+
+case $SLURM_ARRAY_TASK_ID in
+1) IN=L15_80 ;;
+2) IN=L15_81 ;;
+3) IN=L15_82 ;;
+4) IN=L15_83 ;;
+5) IN=L15_84 ;;
+6) IN=L15_85 ;;
+7) IN=L15_86 ;;
+8) IN=L15_87 ;;
+9) IN=L15_88 ;;
+10) IN=L15_89 ;;
+11) IN=L15_8 ;;
+12) IN=L15_90 ;;
+13) IN=L15_91 ;;
+14) IN=L15_92 ;;
+15) IN=L15_93 ;;
+16) IN=L15_94 ;;
+17) IN=L15_95 ;;
+18) IN=L15_96 ;;
+19) IN=L15_9 ;;
+20) IN=L16_10 ;;
+21) IN=L16_11 ;;
+22) IN=L16_12 ;;
+23) IN=L16_13 ;;
+24) IN=L16_14 ;;
+25) IN=L16_15 ;;
+26) IN=L16_16 ;;
+27) IN=L16_17 ;;
+28) IN=L16_18 ;;
+29) IN=L16_19 ;;
+30) IN=L16_1 ;;
+31) IN=L16_20 ;;
+32) IN=L16_21 ;;
+33) IN=L16_22 ;;
+34) IN=L16_23 ;;
+35) IN=L16_24 ;;
+36) IN=L16_25 ;;
+37) IN=L16_26 ;;
+38) IN=L16_27 ;;
+39) IN=L16_28 ;;
+40) IN=L16_29 ;;
+41) IN=L16_2 ;;
+42) IN=L16_30 ;;
+43) IN=L16_31 ;;
+44) IN=L16_32 ;;
+45) IN=L16_33 ;;
+46) IN=L16_34 ;;
+47) IN=L16_35 ;;
+48) IN=L16_36 ;;
+49) IN=L16_37 ;;
+50) IN=L16_38 ;;
+51) IN=L16_39 ;;
+52) IN=L16_3 ;;
+53) IN=L16_40 ;;
+54) IN=L16_41 ;;
+55) IN=L16_42 ;;
+56) IN=L16_43 ;;
+57) IN=L16_44 ;;
+58) IN=L16_45 ;;
+59) IN=L16_46 ;;
+60) IN=L16_47 ;;
+61) IN=L16_48 ;;
+62) IN=L16_49 ;;
+63) IN=L16_4 ;;
+64) IN=L16_51 ;;
+65) IN=L16_52 ;;
+66) IN=L16_53 ;;
+67) IN=L16_54 ;;
+68) IN=L16_55 ;;
+69) IN=L16_56 ;;
+70) IN=L16_57 ;;
+71) IN=L16_58 ;;
+72) IN=L16_59 ;;
+73) IN=L16_5 ;;
+74) IN=L16_60 ;;
+75) IN=L16_61 ;;
+76) IN=L16_62 ;;
+77) IN=L16_63 ;;
+78) IN=L16_64 ;;
+79) IN=L16_65 ;;
+80) IN=L16_66 ;;
+81) IN=L16_67 ;;
+82) IN=L16_68 ;;
+83) IN=L16_69 ;;
+84) IN=L16_6 ;;
+85) IN=L16_70 ;;
+86) IN=L16_71 ;;
+87) IN=L16_72 ;;
+88) IN=L16_73 ;;
+89) IN=L16_74 ;;
+90) IN=L16_75 ;;
+91) IN=L16_76 ;;
+92) IN=L16_77 ;;
+93) IN=L16_78 ;;
+94) IN=L16_79 ;;
+95) IN=L16_7 ;;
+96) IN=L16_80 ;;
+97) IN=L16_81 ;;
+98) IN=L16_82 ;;
+99) IN=L16_83 ;;
+100) IN=L16_84 ;;
+101) IN=L16_85 ;;
+102) IN=L16_86 ;;
+103) IN=L16_87 ;;
+104) IN=L16_88 ;;
+105) IN=L16_89 ;;
+106) IN=L16_8 ;;
+107) IN=L16_90 ;;
+108) IN=L16_91 ;;
+109) IN=L16_92 ;;
+110) IN=L16_93 ;;
+111) IN=L16_94 ;;
+112) IN=L16_95 ;;
+113) IN=L16_96 ;;
+114) IN=L16_9 ;;
+esac
+
+module load bio/gatk/4.2.0.0
+conda activate gatk
+ gatk --java-options "-Xmx4g" HaplotypeCaller  \
+   -R /scratch2/mkardos/methowWGS/resources/GCA_025558465.1_Omyk_2.0_genomic.fasta \
+   -I ${IN}.RG.bam \
+   -O ../../gvcf/${IN}.g.vcf.gz \
+   -ERC GVCF
