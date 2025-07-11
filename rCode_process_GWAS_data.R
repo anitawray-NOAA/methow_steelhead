@@ -1,10 +1,18 @@
 # process Methow RADSeq data
-setwd("~/Documents/Methow_steelhead/RAD/filter_1-2025")
-library(GENESIS)
-library(SeqArray)
-library(SNPRelate)
-library(vcfR)
-library(GWASTools)
+setwd("~/Desktop/methow_steelhead/raw/")
+packages <- c('GENESIS', 'SeqArray', 'SNPRelate', 'vcfR', 'GWASTools')
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
+#theme_set(theme_classic())
+
+
 
 
 #############################
