@@ -1,7 +1,5 @@
-# methow_steelhead
-genetics of steelhead life history traits
+# Methow Steelhead Project: genetics of steelhead life history traits
 data analysis workflow is defined in methow_rad_workflow.txt
-
 
 ## Objectives
 The overall objective of the genetic component of this study is to understand of the genetic basis of growth, smoltification, and survival in seawater. Specifically, the genetic analyses include the following three components.   
