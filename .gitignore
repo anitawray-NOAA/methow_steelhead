@@ -1,3 +1,7 @@
+#Raw data folder
+raw/*
+
+
 # History files
 .Rhistory
 .Rapp.history
