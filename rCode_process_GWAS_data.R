@@ -1,6 +1,7 @@
 # process Methow RADSeq data
 setwd("~/Desktop/methow_steelhead/raw/")
-packages <- c('GENESIS', 'SeqArray', 'SNPRelate', 'vcfR', 'GWASTools')
+packages <- c('GENESIS', 'SeqArray', 'SNPRelate', 'vcfR', 'GWASTools', 'tidyverse',
+              'scales', 'reshape2')
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -10,10 +11,7 @@ if (any(installed_packages == FALSE)) {
 
 # Packages loading
 invisible(lapply(packages, library, character.only = TRUE))
-#theme_set(theme_classic())
-
-
-
+theme_set(theme_classic())
 
 #############################
 ### convert to gds format
@@ -37,6 +35,7 @@ snpgdsVCF2GDS("Methow_RAD_chroms_noIndels_minDP15_maxDP40_minGQ20_minGenDP6_maxM
 
 gds_genoReader <- GdsGenotypeReader("gds")
 gds_samples <- getScanID(gds_genoReader)
+write.table(gds_samples, file = '../samples_in_gds_file.txt')
 
 
 # make genotype reader format data
@@ -53,8 +52,7 @@ gds_genos_iterator <-GenotypeBlockIterator(gds_genos,snpBlock=20000)
 #####################################
 # process phenotypes and IDs
 #####################################
-library(reshape2)
-phenos <- read.table("pheno_data.txt",header=TRUE)
+phenos <- read.delim("pheno_data_NA_repl.txt", header = TRUE)
 phenos <- phenos[order(phenos$Fin_Clip_Number),]
 
 IDs <- read.table("GenIDs_SampIDs_10Feb2025.txt",header=TRUE) # read in the ID Key
@@ -96,6 +94,10 @@ smolt_bin <- rep(NA,nrow(phenosOut))
 smolt_bin[which(phenosOut$SI_text == "Smolt" | phenosOut$SI_text == "Transitional")] <- 1
 smolt_bin[which(phenosOut$SI_text != "Smolt" & phenosOut$SI_text != "Transitional")] <- 0
 phenosOut <- cbind(phenosOut,smolt_bin)
+
+# fill in the NA values for the 48 hour saltwater test
+phenosOut[is.na(phenosOut$X48.hr.SWC.mort),19] <- 0
+
 #rename ID to make compatible with gds format
 colnames(phenosOut)[1] <- "scanID"
 
@@ -108,12 +110,64 @@ SA_Date <- as.numeric(as.Date(phenosOut2$SA_date,format='%m/%d/%Y'))
 days <- SA_Date - tag_date
 growth <- (as.numeric(phenosOut2$WT) - phenosOut2$Weight)/days
 phenosOut2 <- cbind(phenosOut2,growth)
-write.table(phenosOut2,file="phenosOut2",quote=FALSE,row.names=FALSE)
+#write.table(phenosOut2,file="phenosOut2",quote=FALSE,row.names=FALSE)
 
 # scan the phenotype annotation file for GENESIS
 scanAnnot_phenos <-ScanAnnotationDataFrame(phenosOut2)
 
 
+####################
+# preliminary PCA
+####################
+showfile.gds(closeall=TRUE)
+dat <- snpgdsOpen("gds")
+pca <- snpgdsPCA(dat, num.thread=2)
+
+
+# extract proportion of variance explained
+
+propVar <- pca$varprop
+head(round(propVar, 3))
+
+# make a table of PCs 1 & 2
+tab <- data.frame(sample.id = pca$sample.id,
+                  EV1 = pca$eigenvect[,1],    # the first eigenvector
+                  EV2 = pca$eigenvect[,2],    # the second eigenvector
+                  stringsAsFactors = FALSE)
+tab <- merge(tab, phenosOut, by.x = 'sample.id', by.y = 'scanID')
+
+
+pdf('overall_PCAs.pdf')
+ggplot(data = tab, aes(EV1,EV2, color = Treatment)) +
+  geom_point(pch = 16) +
+  xlab("PC1 (2%)") +
+  ylab("PC2 (1.7%)")
+
+ggplot(data = tab, aes(EV1,EV2, color = as.factor(Tank))) +
+  geom_point(pch = 16) +
+  xlab("PC1 (2%)") +
+  ylab("PC2 (1.7%)")
+
+ggplot(data = tab, aes(EV1,EV2, color = SI_text)) +
+  geom_point(pch = 16) +
+  xlab("PC1 (2%)") +
+  ylab("PC2 (1.7%)")
+dev.off()
+
+showfile.gds(closeall=TRUE) #close the PCA GDS
+
+### Re-open the GDS for the GWAS and kinship analyses
+gds_genoReader <- GdsGenotypeReader("gds")
+gds_samples <- getScanID(gds_genoReader)
+
+
+# make genotype reader format data
+
+# convert gds to genotypes
+gds_genos<-GenotypeData(gds_genoReader)
+
+# convert genotypes to genotype iterator for input into GWAS
+gds_genos_iterator <-GenotypeBlockIterator(gds_genos,snpBlock=20000)
 
 ###################
 # kinship matrix
@@ -139,14 +193,108 @@ PCrelate_mat <- pcrelateToMatrix(PCrelate_kins)
 # read in map file with the correct chromosome names
 map <- read.table("Methow_RAD_chroms_noIndels_minDP15_maxDP40_minGQ20_minGenDP6_maxMiss0.7_maf0.01_noParalogs_maxMiss0.9_minGenoDP12_minGQ30_maxMiss0.8_read1SNPsOnly_numChroms_allPhenInds_corrNames.map",header=FALSE)
 
+pdf("figures/kin-matrix-heatmap.pdf")
+kinMatrix_matrix <- as.matrix(kinMatrix)
+kinship.heatmap(kinMatrix_matrix, row.label = TRUE, col.label = TRUE)
+dev.off()
+
+
 ##############################################################################################
-# smoltification GWAS
+# 2 day mortality GWAS 
+# (for some reason I can't run both the GWAS' without re-running all the previous code)
+##############################################################################################
+#fit null model for smoltification
+mort_2_day_null_mod <- fitNullModel(scanAnnot_phenos, outcome="X48.hr.SWC.mort", covars=c("Tank"), 
+                                     cov.mat=PCrelate_mat, family=binomial)
+gds_genos_iterator <-GenotypeBlockIterator(gds_genos,snpBlock=20000)
+
+#GWAS
+mort_2_day_GWAS<-assocTestSingle(gds_genos_iterator, null.model = mort_2_day_null_mod,
+                                  test="Score") 
+
+
+# manhattan plot
+gap <- 10
+chrom_gwas <- unique(mort_2_day_GWAS$chr)
+resMat <- mort_2_day_GWAS
+resMat$chr <- map[,1]
+chroms <- unique(resMat$chr)
+chrLengs <- rep(NA,length(chroms))
+for(i in 1:length(chroms)){
+  chrLengs[i] <- max(resMat[which(resMat$chr == chroms[i]),3])
+}
+xMax <- sum(chrLengs)/1000000 + gap*28
+pdf('figures/GWAS_compiled.pdf')
+#jpeg('mort_2_day_GWAS.jpg', width = 1800, height = 900, units = "px", pointsize = 12)
+plot(c(0,xMax),c(0,6),type="n",axes=FALSE,xlab="Genomic Position",ylab="-log10(P)")
+xIter <- 0
+cols <- rep(c("blue","orange"),20)
+for(i in 1:length(chroms)){
+  thisDat <- resMat[which(resMat$chr == chroms[i]),]
+  points(xIter + thisDat$pos/1000000,-1*log10(thisDat$Score.pval),col=alpha(cols[i],alpha=0.3),
+         pch=16,cex=0.9)
+  xIter <- xIter+gap+max(thisDat$pos/1000000)
+}
+
+axis(side=2,at=seq(0,6,1))
+title("48 hour mort GWAS")
+#dev.off()
+
+
+
+##############################################################################################
+# 14 day mortality GWAS 
+# (for some reason I can't run both the GWAS' without re-running all the previous code)
+##############################################################################################
+#fit null model for smoltification
+mort_14_day_null_mod <- fitNullModel(scanAnnot_phenos, outcome="SWC_mort_14_day", covars=c("Tank"), 
+                                   cov.mat=PCrelate_mat, family=binomial)
+gds_genos_iterator <-GenotypeBlockIterator(gds_genos,snpBlock=20000)
+
+#GWAS
+mort_14_day_GWAS<-assocTestSingle(gds_genos_iterator, null.model = mort_14_day_null_mod,
+                   test="Score") 
+
+
+# manhattan plot
+gap <- 10
+chrom_gwas <- unique(mort_14_day_GWAS$chr)
+resMat <- mort_14_day_GWAS
+resMat$chr <- map[,1]
+chroms <- unique(resMat$chr)
+chrLengs <- rep(NA,length(chroms))
+for(i in 1:length(chroms)){
+  chrLengs[i] <- max(resMat[which(resMat$chr == chroms[i]),3])
+}
+xMax <- sum(chrLengs)/1000000 + gap*28
+
+#jpeg('mort_14_day_GWAS.jpg', width = 1800, height = 900, units = "px", pointsize = 12)
+plot(c(0,xMax),c(0,6),type="n",axes=FALSE,xlab="Genomic Position",ylab="-log10(P)")
+xIter <- 0
+cols <- rep(c("blue","orange"),20)
+for(i in 1:length(chroms)){
+  thisDat <- resMat[which(resMat$chr == chroms[i]),]
+  points(xIter + thisDat$pos/1000000,-1*log10(thisDat$Score.pval),col=alpha(cols[i],alpha=0.3),
+         pch=16,cex=0.9)
+  xIter <- xIter+gap+max(thisDat$pos/1000000)
+}
+
+axis(side=2,at=seq(0,6,1))
+title("14 day mort GWAS")
+#dev.off()
+
+
+
+
+##############################################################################################
+# smoltification GWAS 
 ##############################################################################################
 
 #fit null model for smoltification
-smolt_bin_null_mod <- fitNullModel(scanAnnot_phenos, outcome="smolt_bin", covars=c("growth"), 
+smolt_bin_null_mod <- fitNullModel(scanAnnot_phenos, outcome="smolt_bin", covars=c("Tank"), 
                               cov.mat=PCrelate_mat, family=binomial)
 
+gds_genos_iterator <-GenotypeBlockIterator(gds_genos,snpBlock=20000)
 #GWAS
 s<-assocTestSingle(gds_genos_iterator, null.model = smolt_bin_null_mod,
                                test="Score") 
@@ -164,7 +312,7 @@ for(i in 1:length(chroms)){
 }
 xMax <- sum(chrLengs)/1000000 + gap*28
 
-library(scales)
+#jpeg('smoltification_GWAS.jpg', width = 1800, height = 900, units = "px", pointsize = 12)
 plot(c(0,xMax),c(0,6),type="n",axes=FALSE,xlab="Genomic Position",ylab="-log10(P)")
 xIter <- 0
 cols <- rep(c("blue","orange"),20)
@@ -176,16 +324,16 @@ for(i in 1:length(chroms)){
 }
 
 axis(side=2,at=seq(0,6,1))
+title("smoltification GWAS")
+#dev.off()
 
 ##############################################################################################
 # growth GWAS
 ##############################################################################################
-
-
 #fit null model for growth
 growth_null_mod <- fitNullModel(scanAnnot_phenos, outcome="growth",  covars=c("Tank"),
                                    cov.mat=PCrelate_mat, family="gaussian")
-
+gds_genos_iterator <-GenotypeBlockIterator(gds_genos,snpBlock=20000)
 # Heritability
 varCompCI(growth_null_mod, prop = TRUE)
 
@@ -204,7 +352,7 @@ for(i in 1:length(chroms)){
 }
 xMax <- sum(chrLengs)/1000000 + gap*28
 
-library(scales)
+#jpeg('growth_GWAS.jpg', width = 1800, height = 900, units = "px", pointsize = 12)
 plot(c(0,xMax),c(0,6),type="n",axes=FALSE,xlab="Genomic Position",ylab="-log10(P)")
 xIter <- 0
 cols <- rep(c("blue","orange"),20)
@@ -213,29 +361,85 @@ for(i in 1:length(chroms)){
     points(xIter + thisDat$pos/1000000,-1*log10(thisDat$Score.pval),col=alpha(cols[i],alpha=0.3),
            pch=16,cex=0.9)
     xIter <- xIter+gap+max(thisDat$pos/1000000)
+    #axis(i)
 }
 
 axis(side=2,at=seq(0,6,1))
-
+title("growth GWAS")
+#axis(side=1,at=seq(0,26,1) )
+#dev.off()
+dev.off()
 
 ##########################################################
 ###### plot just chromosome five p-values
 ##########################################################
-
 # manhattan plot
 
-library(scales)
+
 thisDat <- resMat[which(resMat$chr == 5),]
 xMax <- max(thisDat$pos)/1000000
 xMin <- min(thisDat$pos)/1000000
+
+chrom5 <- ggplot(thisDat) + 
+  geom_point(aes(x = pos/1000000, y = -1*log10(Score.pval), 
+                 alpha = 0.3), color = 'blue', size = 2) +
+  xlab("Genomic Position (Mb)") + ylab("-log10(P)") +
+  theme(legend.position = 'none')
+
+#jpeg('chrom_5_growth_GWAS.jpg')
+chrom5
+#dev.off()
+
 plot(c(0,xMax),c(0,6),type="n",axes=FALSE,xlab="Genomic Position (Mb)",ylab="-log10(P)")
 xIter <- 0
 
 points(thisDat$pos/1000000,-1*log10(thisDat$Score.pval),col=alpha("blue",alpha=0.3),
-         pch=16,cex=1.5)
+       pch=16,cex=1.5)
 
 axis(side=2,at=seq(0,6,1))
 axis(side=1,at=seq(0,100,10))
+
+##########################################################
+###### look at just chromosome five
+##########################################################
+
+
+pcaSNPs <- thisDat$variant.id[which(thisDat$pos >= 33000000 & thisDat$pos <= 87000000)]
+write.table(pcaSNPs, file = 'chrom5_SNPs')
+gc()
+showfile.gds(closeall=TRUE)
+gdsSubset(parent.gds="gds",sub.gds="inversion_gds",snp.include=pcaSNPs)
+
+# make a gds for all snps on chrom 5 for LD analysis
+
+ldSNPs <- thisDat$variant.id
+ldSNPInfo <- thisDat[,1:3]
+write.table(ldSNPInfo,file="ld_snp_info",quote=FALSE,row.names=FALSE,col.names=TRUE)
+gc()
+ldSNPMat <- read.table("ld_snp_info",header=TRUE)
+showfile.gds(closeall=TRUE)
+gdsSubset(parent.gds="gds",sub.gds="ld_gds",snp.include=ldSNPMat$variant.id)
+
+dat <- snpgdsOpen("ld_gds")
+ldMatrix <- snpgdsLDMat(gdsobj=dat,slide=-1,method= "corr")
+ld <- abs(ldMatrix[[3]])
+
+snpInfo <- read.table("ld_snp_info",header=TRUE)
+
+#prune number of loci
+prunNum <- 1000
+
+keepLoci <- sort(sample(1:(nrow(snpInfo)-1),prunNum-1,replace=FALSE))
+keepLoci <- c(keepLoci,nrow(snpInfo))
+ld2 <- ld[,keepLoci]
+ld2 <- ld2[keepLoci,]
+snpInfo2 <- snpInfo[keepLoci,]
+
+# save results
+
+write.table(ld2,file="LD_omy5_1Kloci",row.names=FALSE,col.names=FALSE,quote=FALSE)
+write.table(snpInfo2,file="LD_omy5_1Kloc_snpInfo",row.names=FALSE,col.names=FALSE,quote=FALSE)
+
 
 #######################################################
 # make another omy5 manhattan plot with an LD matrix
@@ -246,6 +450,8 @@ ld2 <- as.matrix(read.table("LD_omy5_1Kloci",header=FALSE))
 snpInfo2 <- read.table("LD_omy5_1Kloc_snpInfo",header=FALSE)
 
 numLoci <- nrow(snpInfo2)
+
+jpeg('chrom_5_LD_and_GWAS.jpg')
 plot(c(1,numLoci),c(0,numLoci),ylim=c(-0.19*numLoci,numLoci),type="n",axes=FALSE,ylab="",xlab="")
 
 # make a color ramp 
@@ -296,7 +502,6 @@ par(mar=c(5,6,1,4))
 
 # manhattan plot
 
-library(scales)
 thisDat <- resMat[which(resMat$chr == 5),]
 xMax <- max(thisDat$pos)/1000000
 xMin <- min(thisDat$pos)/1000000
@@ -307,13 +512,7 @@ points(thisDat$pos/1000000,-1*log10(thisDat$Score.pval),col=alpha("blue",alpha=0
 
 axis(side=2,at=seq(0,6,1))
 axis(side=1,at=seq(0,100,10))
-
-
-
-
-
-
-
+dev.off()
 
 ############################################################################
 # make another omy5 manhattan plot with an LD matrix with physical position
@@ -322,7 +521,7 @@ par(mfrow=c(2,1),mar=c(0.5,6,1,4),xpd=TRUE)
 
 ld2 <- as.matrix(read.table("LD_omy5_1Kloci",header=FALSE))
 snpInfo2 <- read.table("LD_omy5_1Kloc_snpInfo",header=FALSE)
-
+jpeg('chrom_5_LD.jpg')
 numLoci <- nrow(snpInfo2)
 plot(c(0.5,101),c(0,101),type="n",ylab="",xlab="",axes=FALSE)
 
@@ -358,6 +557,7 @@ for(i in 1:10){
 axis(side=1,at=seq(0,100,10))
 
 text(x=10,y=104,labels=expression(italic(""*r*"")))
+dev.off()
 #------------------------------------------------
 # add manhattan plot
 #------------------------------------------------
@@ -367,7 +567,6 @@ par(mar=c(5,6,2,4))
 
 # manhattan plot
 
-library(scales)
 thisDat <- resMat[which(resMat$chr == 5),]
 xMax <- max(thisDat$pos)/1000000
 xMin <- min(thisDat$pos)/1000000
@@ -382,23 +581,6 @@ axis(side=1,at=seq(0,100,10))
 ###################################################################################
 #make a pca using genotypes only in the inversion region, expecting three clusters
 ###################################################################################
-
-pcaSNPs <- thisDat$variant.id[which(thisDat$pos >= 33000000 & thisDat$pos <= 87000000)]
-rm(list=ls())
-gc()
-gdsSubset(parent.gds="gds",sub.gds="inversion_gds",snp.include=pcaSNPs)
-
-# make a gds for all snps on chrom 5 for LD analysis
-
-ldSNPs <- thisDat$variant.id
-ldSNPInfo <- thisDat[,1:3]
-write.table(ldSNPInfo,file="ld_snp_info",quote=FALSE,row.names=FALSE,col.names=TRUE)
-rm(list=ls())
-gc()
-ldSNPMat <- read.table("ld_snp_info",header=TRUE)
-
-gdsSubset(parent.gds="gds",sub.gds="ld_gds",snp.include=ldSNPMat$variant.id)
-
 
 
 # plot results
@@ -435,3 +617,28 @@ plotXPos <- 0 + (xPos/max(xPos))*prunNum
 text(plotXPos,y=rep(-0.19*prunNum,length(plotXPos)),labels=xPos)
 
 
+showfile.gds(closeall=TRUE)
+genos <- snpgdsOpen("inversion_gds")
+genoDat <- snpgdsGetGeno("inversion_gds",with.id=TRUE)
+genoMat <- genoDat[[1]]
+genoIDs <- genoDat[[2]]
+pca <- snpgdsPCA(genos, num.thread=2)
+
+
+# extract proportion of variance explained
+
+propVar <- pca$varprop
+#head(round(pc.percent, 2))
+
+# make a table of PCs 1 & 2
+tab <- data.frame(sample.id = pca$sample.id,
+                  EV1 = pca$eigenvect[,1],    # the first eigenvector
+                  EV2 = pca$eigenvect[,2],    # the second eigenvector
+                  stringsAsFactors = FALSE)
+head(tab)
+
+
+jpeg('chrom_5_PCA.jpg')
+plot(tab$EV1,tab$EV2,xlab="PC1 (26%)",ylab="PC2 (5%)",col=alpha("blue",alpha=0.2),pch=16)
+indHet <- rowSums(genoMat == 1,na.rm=TRUE)/rowSums(is.na(genoMat) == FALSE)
+dev.off()
