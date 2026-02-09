@@ -1,0 +1,201 @@
+---
+title: "angsd_GWAS_noPCs_filtered"
+author: "Anita Wray"
+date: "`r Sys.Date()`"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE)
+start_time <- Sys.time()
+knitr::opts_knit$set(root.dir ="~/Desktop/methow_steelhead/WGS/")
+library(tidyverse)
+library(qqman)
+```
+
+```{r read in files - noPC - filtered}
+library(tidyverse)
+
+header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
+
+lrt_filt_noPC <- read_tsv("noPCs_filtered_asso_results.txt", col_names = header)
+
+#colnames(lrt) <- header
+
+#remove the values that are not -999 and that are negative
+lrt_filt_noPC_filt <- lrt_filt_noPC %>%
+  subset(LRT != -999) %>%
+  subset(LRT > 0)
+
+# and save that into stored_results
+#write_rds(lrt_filt, file = "assoc-lrts-filtered-2PCs.rds", compress = "xz")
+```
+
+```{r p-values & plotting - noPC - filtered}
+lrt_filt_noPC_filt$SNP<-paste("r",1:length(lrt_filt_noPC_filt$Chromosome), sep="")
+#get pvalues
+lrt_filt_noPC_filt$pvalue<-pchisq(lrt_filt_noPC_filt$LRT, df=1, lower=F)
+lrt_filt_noPC_filt$adj_pvalue <- p.adjust(lrt_filt_noPC_filt$pvalue, method = "bonferroni")
+
+chrom_numbers <- read_tsv("chromosome_table.tsv", col_names = c('Chromosome','CHR_NUM'))
+
+lrt_filt_noPC_filt <- merge(lrt_filt_noPC_filt, chrom_numbers)
+# note, we name the column abs_diff to be compatible with our plotting functions
+# but will rename the axis to "negative log10 p-value".
+
+newp <- 0.01/nrow(lrt_filt_noPC)
+
+
+#lrt_filt_noPC_filt <- lrt_filt_noPC_filt %>%
+#  subset(adj_pvalue >= 2.981861e-303)
+
+qqnorm(lrt_filt_noPC_filt$pvalue)
+
+manhattan(lrt_filt_noPC_filt, chr="CHR_NUM", bp="Position", 
+          p="LRT", genomewideline = newp)
+
+```
+
+```{r read in files - 2PC - filtered}
+header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
+
+lrt_filt_2PC <- read_tsv("asso-results_2PCs_filtered.txt", col_names = header)
+
+#colnames(lrt_filt_2PC) <- header
+
+#remove the values that are not -999 and that are negative
+lrt_filt_2PC_filt <- lrt_filt_2PC %>%
+  subset(LRT != -999) %>%
+  subset(LRT > 0)
+
+# and save that into stored_results
+#write_rds(lrt_filt_2PC_filt, file = "assoc-lrt_filt_2PCs-filtered-2PCs.rds", compress = "xz")
+```
+
+```{r p-values & plotting - 2PC - filtered}
+lrt_filt_2PC_filt$SNP<-paste("r",1:length(lrt_filt_2PC_filt$Chromosome), sep="")
+#get pvalues
+lrt_filt_2PC_filt$pvalue<-pchisq(lrt_filt_2PC_filt$LRT, df=1, lower=F)
+lrt_filt_2PC_filt$adj_pvalue <- p.adjust(lrt_filt_2PC_filt$pvalue, method = "bonferroni")
+
+chrom_numbers <- read_tsv("chromosome_table.tsv", col_names = c('Chromosome','CHR_NUM'))
+
+lrt_filt_2PC_filt <- merge(lrt_filt_2PC_filt, chrom_numbers)
+# note, we name the column abs_diff to be compatible with our plotting functions
+# but will rename the axis to "negative log10 p-value".
+
+newp <- 0.01/nrow(lrt_filt_2PC)
+
+
+#lrt_filt_2PC_filt <- lrt_filt_2PC_filt %>%
+#  subset(adj_pvalue >= 2.981861e-303)
+
+qqnorm(lrt_filt_2PC_filt$pvalue)
+```
+
+```{r read in files - 2PC - NOTfiltered}
+header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
+
+lrt_nofilt_2PC <- read_tsv("asso-results-2PCs.txt", col_names = header)
+
+#colnames(lrt_nofilt_2PC) <- header
+
+#remove the values that are not -999 and that are negative
+lrt_nofilt_2PC_filt <- lrt_nofilt_2PC %>%
+  subset(LRT != -999) %>%
+  subset(LRT > 0)
+
+# and save that into stored_results
+#write_rds(lrt_nofilt_2PC_filt, file = "assoc-lrt_nofilt_2PCs-filtered-2PCs.rds", compress = "xz")
+```
+
+```{r p-values & plotting - 2PC - NOTfiltered}
+lrt_nofilt_2PC_filt$SNP<-paste("r",1:length(lrt_nofilt_2PC_filt$Chromosome), sep="")
+#get pvalues
+lrt_nofilt_2PC_filt$pvalue<-pchisq(lrt_nofilt_2PC_filt$LRT, df=1, lower=F)
+lrt_nofilt_2PC_filt$adj_pvalue <- p.adjust(lrt_nofilt_2PC_filt$pvalue, method = "bonferroni")
+
+chrom_numbers <- read_tsv("chromosome_table.tsv", col_names = c('Chromosome','CHR_NUM'))
+
+lrt_nofilt_2PC_filt <- merge(lrt_nofilt_2PC_filt, chrom_numbers)
+# note, we name the column abs_diff to be compatible with our plotting functions
+# but will rename the axis to "negative log10 p-value".
+
+newp <- 0.01/nrow(lrt_nofilt_2PC)
+
+
+lrt_nofilt_2PC_filt <- lrt_nofilt_2PC_filt %>%
+  subset(adj_pvalue >= 2.981861e-303)
+
+qqnorm(lrt_nofilt_2PC_filt$pvalue)
+```
+
+```{r read in files - noPC - NOTfiltered}
+header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
+
+lrt_nofilt_noPC <- read_tsv("asso-results.txt", col_names = header)
+
+#colnames(lrt_nofilt_noPC) <- header
+
+#remove the values that are not -999 and that are negative
+lrt_nofilt_noPC_filt <- lrt_nofilt_noPC %>%
+  subset(LRT != -999) %>%
+  subset(LRT > 0)
+
+# and save that into stored_results
+#write_rds(lrt_nofilt_noPC_filt, file = "assoc-lrt_nofilt_noPCs-filtered-2PCs.rds", compress = "xz")
+```
+
+```{r p-values & plotting - noPC - NOTfiltered}
+lrt_nofilt_noPC_filt$SNP<-paste("r",1:length(lrt_nofilt_noPC_filt$Chromosome), sep="")
+#get pvalues
+lrt_nofilt_noPC_filt$pvalue<-pchisq(lrt_nofilt_noPC_filt$LRT, df=1, lower=F)
+lrt_nofilt_noPC_filt$adj_pvalue <- p.adjust(lrt_nofilt_noPC_filt$pvalue, method = "bonferroni")
+
+chrom_numbers <- read_tsv("chromosome_table.tsv", col_names = c('Chromosome','CHR_NUM'))
+
+lrt_nofilt_noPC_filt <- merge(lrt_nofilt_noPC_filt, chrom_numbers)
+# note, we name the column abs_diff to be compatible with our plotting functions
+# but will rename the axis to "negative log10 p-value".
+
+newp <- 0.01/nrow(lrt_nofilt_noPC)
+
+
+lrt_nofilt_noPC_filt <- lrt_nofilt_noPC_filt %>%
+  subset(adj_pvalue >= 2.981861e-303)
+
+qqnorm(lrt_nofilt_noPC_filt$pvalue)
+```
+
+
+In order:
+1. no filter - no PCs
+2. filtered SNPs - no PCs
+3. no filter - 2 PCs
+4. filtered SNPs - 2 PCs
+```{r echo=TRUE, fig.width=11}
+manhattan(lrt_nofilt_noPC_filt, chr="CHR_NUM", bp="Position", 
+          p="adj_pvalue", genomewideline = newp)
+
+manhattan(lrt_filt_noPC_filt, chr="CHR_NUM", bp="Position", 
+          p="adj_pvalue", genomewideline = newp)
+manhattan(lrt_nofilt_2PC_filt, chr="CHR_NUM", bp="Position", 
+          p="adj_pvalue", genomewideline = newp)
+manhattan(lrt_filt_2PC_filt, chr="CHR_NUM", bp="Position", 
+          p="adj_pvalue", genomewideline = newp)
+```
+
+
+
+# Session Info
+
+```{r sesh info, eval=FALSE, include=FALSE}
+sessioninfo::session_info()
+```
+
+# Running Time
+
+Running the code and rendering this notebook required approximately this much time
+on a Mac laptop of middling speed:
+```{r est time, echo=FALSE}
+Sys.time() - start_time
+```

@@ -1,0 +1,19 @@
+PCAngsd v1.36.4
+Time: 09/12/2025 10:36:04
+Directory: /scratch2/awray/methow
+Options:
+	--beagle /scratch2/awray/methow/angsd/snp_calling_global/CM046574.1.beagle.gz
+	--threads 8
+	--out chr5_pcangsd
+	--maf 0.01
+	--snp_weights
+	--sites_save
+
+Loaded 838983 sites and 243 samples.
+Number of sites after MAF filtering (0.01): 838983
+
+PCAngsd converged in 44 iterations using 3 eigenvectors.
+Saved covariance matrix as chr5_pcangsd.cov
+Saved SNP weights as chr5_pcangsd.weights
+Saved boolean vector of sites kept after filtering as chr5_pcangsd.sites
+Total elapsed time: 15m56s

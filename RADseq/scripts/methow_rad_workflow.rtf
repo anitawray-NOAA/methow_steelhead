@@ -1,0 +1,107 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2709
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\froman\fcharset0 TimesNewRomanPSMT;\f2\fnil\fcharset0 Menlo-Regular;
+}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww27720\viewh18760\viewkind0
+\deftab720
+\pard\pardeftab720\sl368\sa213\partightenfactor0
+
+\f0\fs48 \cf2 \expnd0\expndtw0\kerning0
+Workflow for methow RADSeq data analysis\
+\pard\pardeftab720\li960\fi-480\sl368\partightenfactor0
+\cf2 1)
+\f1 \'a0\'a0\'a0 
+\f0 Trim reads: 
+\f2 trim_reads.sh
+\f0 \
+2)
+\f1 \'a0\'a0\'a0 
+\f2 Demultiplex samples: process_radtags.sh
+\f0 \
+3)
+\f1 \'a0\'a0\'a0 
+\f2 Remove PCR duplicates: clone_filter_01.sh\'85 clone_filter_16.sh
+\f0 \
+4)
+\f1 \'a0\'a0\'a0 
+\f2 Align to reference genome with BWA: bwa_1.sh\'85 bwa_16.sh
+\f0 \
+5)
+\f1 \'a0\'a0\'a0 
+\f2 Index bams: indexBams_1.sh\'85 indexBams_8.sh
+\f0 \
+6)
+\f1 \'a0\'a0\'a0 
+\f2 Call variants with GATK: haplotypeCaller_1.sh
+\f0 \
+7)
+\f1 \'a0\'a0\'a0 
+\f2 Put results in vcf format: genotype_gvcfs.sh
+\f0 \
+8)
+\f1 \'a0\'a0\'a0 
+\f2 Merge vcfs: merge_vcfs.sh
+\f0 \
+9)
+\f1 \'a0\'a0\'a0 
+\f0 Filter: \
+\pard\pardeftab720\li1920\fi-480\sl368\partightenfactor0
+\cf2 a.
+\f1 \'a0\'a0\'a0\'a0 
+\f0 In this order: keep only loci on assembled chromosomes; keep only individuals with reasonable minimum average depth; remove indels; remove loci with average depth < 15 or > 40; keep only genotypes with GQ >= 30; remove loci with missingness of 30% or higher; \'a0minimum maf 0.01: 
+\f2 filter_methow_RAD_a.sh
+\f0 \
+b.
+\f1 \'a0\'a0\'a0\'a0 
+\f2 Identify paralogs: rCode_HDPLOT.R
+\f0 \
+c.
+\f1 \'a0\'a0\'a0\'a0 
+\f2 R
+\f0 emove paralogs; max missingness per locus = 0.1; min genotype depth = 12; minimum gq = 30; maximum locus missingness per locus = 0.8: \'a0
+\f2 filter_methow_RAD_b.sh
+\f0 \
+d.
+\f1 \'a0\'a0\'a0\'a0 
+\f2 Identify loci on read 2 and mark them for removal: rCode_removeSNPsOnRead2_24Jan2025.R
+\f0 \
+e.
+\f1 \'a0\'a0\'a0\'a0 
+\f2 Remove loci on read 2: filter_methow_RAD_c.sh
+\f0 \
+\pard\pardeftab720\li960\fi-480\sl368\partightenfactor0
+\cf2 10)
+\f1  
+\f2 Run gwas: rCode_process_GWAS_data.R
+\f0 \
+11)
+\f1  
+\f2 LD on chr 5:
+\f0 \
+\pard\pardeftab720\li1920\fi-480\sl368\partightenfactor0
+\cf2 a.
+\f1 \'a0\'a0\'a0\'a0 
+\f2 Include only chr 5 genotypes: rCode_makeGenosForLDAnalysisOmy5.R
+\f0 \
+b.
+\f1 \'a0\'a0\'a0\'a0 
+\f2 LD analysis, chr 5 only: rCode_estimate_Omy5_LD_matrix.R
+\f0 \
+\pard\pardeftab720\li960\fi-480\sl368\partightenfactor0
+\cf2 12)
+\f1  
+\f2 PCA chr 5:
+\f0 \
+\pard\pardeftab720\li1920\fi-480\sl368\partightenfactor0
+\cf2 a.
+\f1 \'a0\'a0\'a0\'a0 
+\f0 Genotypes only in inversion: rCode_makeGenosForInversionPCA.R\
+\pard\pardeftab720\li1920\fi-480\sl368\sa213\partightenfactor0
+\cf2 b.
+\f1 \'a0\'a0\'a0\'a0 
+\f0 Pca for inversion only: rCode_run_inversion_PCA.R
+\fs32 \
+\pard\pardeftab720\li1440\sl368\sa213\partightenfactor0
+\cf2 \'a0\
+}

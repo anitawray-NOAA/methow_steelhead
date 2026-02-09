@@ -1,0 +1,45 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 Helvetica-Oblique;\f2\fnil\fcharset0 AndaleMono;
+}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red255\green255\blue255;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\cssrgb\c100000\c100000\c100000\c0;}
+\margl1440\margr1440\vieww17900\viewh14360\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf2 \cb3 What to do if you run into an issue with R within loco-pipe:\
+\
+EXAMPLE OF ERROR YOU MIGHT GET:\
+In the big error file: 
+\f1\i Error executing rule plot_pcangsd_pca_global on cluster
+\f0\i0 \
+In the rule log file: 
+\f1\i \CocoaLigature0 Error: package or namespace load failed for \'91tidyverse\'92:\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+\cf2  .onAttach failed in attachNamespace() for 'tidyverse', details:\
+  call: NULL\
+  error: package or namespace load failed for \'91ggplot2\'92:\
+ object 'chooseOpsMethod' not found whilst loading namespace 'S7'\
+In addition: Warning messages:\
+1: package \'91tidyverse\'92 was built under R version 4.4.1 \
+2: package \'91ggplot2\'92 was built under R version 4.4.1 \
+Execution halted\
+\
+\
+
+\f0\i0 \
+1. Go back to the big error file and find the environment that the rule was run in (e.g. conda-env: /scratch2/awray/loco-pipe/.snakemake/conda/cbe36c7befedd384c33cf191b840b4d0_)\
+\
+2. Activate that environment (include the whole path, which you can find via conda info --envs)\
+\
+3. Run \'91R_LIBS_USER=\'91\
+\
+4. Deactivate the environment and try running loco-pipe again\
+\
+If that doesn\'92t work and you are still running into issues - I went into each rule that ran R and just manually added R_LIBS_USER= before each Rscript line. For example:\
+\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f2 \cf2  mkdir -p /scratch2/awray/methow/figures/pcangsd/global\
+ R_LIBS_USER=\
+ Rscript --vanilla /scratch2/awray/loco-pipe/workflow/scripts/plot_pcangsd_pca.R /scratch2/awray/methow/pcangsd/global/combined.subsetted.cov /scratch2/awray/methow/pcangsd/global/combined.subsetted.tsv /scratch2/awray/methow/figures/pcangsd/global/combined.subsetted.png /scratch2/awray/methow/docs/sample_table.tsv population &> /scratch2/awray/methow/pcangsd/global/combined.subsetted.plot.log\
+}
