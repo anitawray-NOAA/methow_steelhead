@@ -44,11 +44,9 @@ WGS/ARCHIVE/
 WGS/figures/
 
 #csv and text files
-*.csv
 *.txt
 *.xlsx
 *.jpg
-*.pdf
 *.html
 SRA_upload*
 
