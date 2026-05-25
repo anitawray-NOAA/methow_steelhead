@@ -42,6 +42,10 @@ RADseq/metadata/
 RADseq/ARCHIVE/
 WGS/ARCHIVE/
 WGS/figures/
+WGS/*.pos
+WGS/*.counts
+WGS/*.mafs
+
 
 #csv and text files
 *.txt

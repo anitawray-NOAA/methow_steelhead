@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE)
 start_time <- Sys.time()
-knitr::opts_knit$set(root.dir ="~/Desktop/methow_steelhead/RADseq/")
+knitr::opts_knit$set(root.dir ="~/Desktop/methow_steelhead/RADseq/angsd_analysis/")
 library(tidyverse)
 library(qqman)
 library(RColorBrewer)
@@ -20,6 +20,11 @@ library(tidyverse)
 header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
 
 lrt_filt_noPC <- read_tsv("RAD_noPC_asso_results.txt", col_names = header)
+
+new_chr_name <- read.delim("../chromosome_table.tsv", header = F, col.names = c("NCBI", "CHR_NUM"))
+new_chr_name$CHR_NUM <- as.factor(new_chr_name$CHR_NUM)
+
+lrt_filt_noPC <- merge(lrt_filt_noPC, new_chr_name, by.x = "Chromosome", by.y = "NCBI", all = TRUE)
 
 #colnames(lrt) <- header
 df_noPC <- lrt_filt_noPC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
@@ -33,13 +38,12 @@ df_noPC <- lrt_filt_noPC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
 
 
 dfs_noPC<- df_noPC %>% arrange(-LRT) %>% head(n=20)
+
+
 ```
 
 ```{r p-values & plotting - noPC - filtered, echo=FALSE, fig.height=8}
-nb.cols <- length(unique(df_noPC$Chromosome))
-mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
-#randomize
-mycolors<-sample(mycolors)
+color_group <- rep(c("lightgrey", "black"), length.out = 29)
 
 
 noPC_plot <- ggplot(df_noPC) +
@@ -52,13 +56,13 @@ noPC_plot <- ggplot(df_noPC) +
   theme(legend.title = element_blank()) +
   theme(panel.grid = element_blank()) +
   theme(legend.position = "none") +
-  #scale_color_manual(values=mycolors) +
+  scale_color_manual(values=color_group) +
   ylab("-log10(p)\n") +
   xlab("\nChromosome") +
   ggtitle("0PCs") +
   theme(plot.title = element_text(hjust=0.5) ) +
   theme(plot.subtitle = element_text(hjust=0.5)) +
-  facet_wrap(.~Chromosome, ncol = 5, scales="free_x") +
+  facet_wrap(.~CHR_NUM, ncol = 5, scales="free_x") +
   theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
 
 ```
@@ -68,9 +72,11 @@ header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',
 
 lrt_filt_2PC <- read_tsv("twoPC_RAD_asso_results.txt", col_names = header)
 
-#colnames(lrt_filt_2PC) <- header
+new_chr_name <- read.delim("../chromosome_table.tsv", header = F, col.names = c("NCBI", "CHR_NUM"))
+new_chr_name$CHR_NUM <- as.factor(new_chr_name$CHR_NUM)
 
-#colnames(lrt) <- header
+lrt_filt_2PC <- merge(lrt_filt_2PC, new_chr_name, by.x = "Chromosome", by.y = "NCBI", all = TRUE)
+
 df_2PC <- lrt_filt_2PC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
   filter(log10p>=0 & log10p != "Inf") %>%
   mutate(p = dchisq(LRT, df=1)) %>%
@@ -82,33 +88,34 @@ df_2PC <- lrt_filt_2PC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
 
 
 dfs_2PC <- df_2PC %>% arrange(-LRT) %>% head(n=20)
+
+sig_snps <- df_2PC %>% arrange(-LRT) %>% subset(log10p > -log10(0.05/nrow(df_2PC)))
+write.csv(sig_snps, file = "RAD_2PC_sig_snps.csv")
 ```
 
-```{r p-values & plotting - 2PC - filtered, echo=FALSE, fig.height=8}
-nb.cols <- length(unique(df_2PC$Chromosome))
-mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
-#randomize
-mycolors<-sample(mycolors)
+```{r p-values & plotting - 2PC - filtered, echo=FALSE, fig.height=4, fig.width=14}
+color_group <- rep(c("lightgrey", "black"), length.out = 29)
 
 
-twoPC_plot <- ggplot(df_2PC) +
+(twoPC_plot <- ggplot(df_2PC) +
   geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
   geom_hline(yintercept = -log10(0.05/nrow(df_2PC)), col="black", linetype=2, alpha=0.5) +
-  geom_hline(yintercept= 4, col="black", linetype=1, alpha=0.5) +
   theme_bw() +
   #scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
   theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
   theme(legend.title = element_blank()) +
   theme(panel.grid = element_blank()) +
   theme(legend.position = "none") +
-  #scale_color_manual(values=mycolors) +
+  scale_color_manual(values=color_group) +
   ylab("-log10(p)\n") +
   xlab("\nChromosome") +
   ggtitle("2PCs") +
   theme(plot.title = element_text(hjust=0.5) ) +
-  theme(plot.subtitle = element_text(hjust=0.5)) +
-  facet_wrap(.~Chromosome, ncol = 5, scales="free_x") +
-  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+  theme(plot.subtitle = element_text(hjust=0.5),
+        panel.spacing = unit(0, "cm"),
+        panel.border = element_blank()) +
+  facet_wrap(.~CHR_NUM, ncol = 29, scales="free_x") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank()))
 ```
 
 ```{r fig.height=10, fig.width=10}

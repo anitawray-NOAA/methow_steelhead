@@ -1,0 +1,157 @@
+---
+title: "angsd_GWAS_WGS_per_pop"
+author: "Anita Wray"
+date: "`r Sys.Date()`"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE)
+start_time <- Sys.time()
+knitr::opts_knit$set(root.dir ="~/Desktop/methow_steelhead/WGS/angsd_analysis/")
+knitr::opts_knit$set(fig.width = 14)
+library(tidyverse)
+library(qqman)
+library(patchwork)
+library(RColorBrewer)
+```
+
+```{r read in files - EC}
+library(tidyverse)
+
+header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
+
+lrt_EC <- read_tsv("EC_asso_results.WGS.txt", col_names = header)
+
+new_chr_name <- read.delim("../chromosome_table.tsv", header = F, col.names = c("NCBI", "CHR_NUM"))
+new_chr_name$CHR_NUM <- as.factor(new_chr_name$CHR_NUM)
+
+lrt_EC <- merge(lrt_EC, new_chr_name, by.x = "Chromosome", by.y = "NCBI", all = TRUE)
+
+#colnames(lrt) <- header
+df_EC <- lrt_EC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+    group_by(Chromosome) %>%
+    mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+    mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+
+(dfs_EC<- df_EC %>% arrange(-LRT) %>% head(n=20))
+
+sig_snps <- df_EC %>% arrange(-LRT) %>% subset(log10p > -log10(0.05/nrow(df_EC)))
+write.csv(sig_snps, file = "EC_WGS_sig_snps.csv")
+```
+
+```{r p-values & plotting - EC, fig.height=4, fig.width=12}
+color_group <- rep(c("lightgrey", "black"), length.out = 29)
+
+qqnorm(df_EC$p)
+
+(EC_plot <- ggplot(df_EC) +
+  geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_hline(yintercept = -log10(0.05/nrow(df_EC)), col="black", linetype=2, alpha=0.5) +
+  theme_bw() +
+  #scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("EC") +
+  theme(plot.title = element_text(hjust=0.5) ) +
+  theme(plot.subtitle = element_text(hjust=0.5),
+        panel.spacing = unit(0, "cm"),
+        panel.border = element_blank()) +
+  facet_wrap(.~CHR_NUM, ncol = 29, scales="free_x") +
+  scale_color_manual(values=color_group) +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank()))
+
+```
+
+
+```{r read in files - LC}
+library(tidyverse)
+
+header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
+
+lrt_LC <- read_tsv("LC_asso_results.WGS.txt", col_names = header)
+
+new_chr_name <- read.delim("../chromosome_table.tsv", header = F, col.names = c("NCBI", "CHR_NUM"))
+new_chr_name$CHR_NUM <- as.factor(new_chr_name$CHR_NUM)
+
+lrt_LC <- merge(lrt_LC, new_chr_name, by.x = "Chromosome", by.y = "NCBI", all = TRUE)
+
+#colnames(lrt) <- header
+df_LC <- lrt_LC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+    group_by(Chromosome) %>%
+    mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+    mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+
+(dfs_LC<- df_LC %>% arrange(-LRT) %>% head(n=20))
+
+sig_snps <- df_LC %>% arrange(-LRT) %>% subset(log10p > -log10(0.05/nrow(df_LC)))
+write.csv(sig_snps, file = "LC_WGS_sig_snps.csv")
+```
+
+```{r p-values & plotting - LC, fig.height=4, fig.width=12}
+color_group <- rep(c("lightgrey", "black"), length.out = 29)
+
+qqnorm(df_LC$LRT)
+
+(LC_plot <- ggplot(df_LC) +
+  geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_hline(yintercept = -log10(0.05/nrow(df_LC)), col="black", linetype=2, alpha=0.5) +
+  theme_bw() +
+  #scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("LC") +
+  theme(plot.title = element_text(hjust=0.5) ) +
+  theme(plot.subtitle = element_text(hjust=0.5),
+        panel.spacing = unit(0, "cm"),
+        panel.border = element_blank()) +
+  facet_wrap(.~CHR_NUM, ncol = 29, scales="free_x") +
+  scale_color_manual(values=color_group) +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank()))
+
+```
+
+
+
+In order:
+1. no filter - no PCs
+2. filtered SNPs - no PCs
+3. no filter - 2 PCs
+4. filtered SNPs - 2 PCs
+```{r echo=TRUE, fig.width=14}
+EC_plot/LC_plot
+
+```
+
+
+
+# Session Info
+
+```{r sesh info, eval=FALSE, include=FALSE}
+sessioninfo::session_info()
+```
+
+# Running Time
+
+Running the code and rendering this notebook required approximately this much time
+on a Mac laptop of middling speed:
+```{r est time, echo=FALSE}
+Sys.time() - start_time
+```

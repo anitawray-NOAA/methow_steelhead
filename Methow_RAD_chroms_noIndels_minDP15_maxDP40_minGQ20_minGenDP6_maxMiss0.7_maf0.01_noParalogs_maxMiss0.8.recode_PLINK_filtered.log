@@ -1,0 +1,35 @@
+PLINK v1.90b6.23 64-bit (28 May 2021)
+Options in effect:
+  --allow-extra-chr
+  --bfile Methow_RAD_chroms_noIndels_minDP15_maxDP40_minGQ20_minGenDP6_maxMiss0.7_maf0.01_noParalogs_maxMiss0.8.recode_PLINK
+  --keep pheno_list.txt
+  --make-bed
+  --out Methow_RAD_chroms_noIndels_minDP15_maxDP40_minGQ20_minGenDP6_maxMiss0.7_maf0.01_noParalogs_maxMiss0.8.recode_PLINK_filtered
+
+Hostname: node04.cluster
+Working directory: /home/awray/methow_steelhead/GCTA_gwas
+Start time: Thu Aug 21 15:38:38 2025
+
+Random number seed: 1755815918
+95104 MB RAM detected; reserving 47552 MB for main workspace.
+108082 variants loaded from .bim file.
+1365 people (0 males, 0 females, 1365 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to
+Methow_RAD_chroms_noIndels_minDP15_maxDP40_minGQ20_minGenDP6_maxMiss0.7_maf0.01_noParalogs_maxMiss0.8.recode_PLINK_filtered.nosex
+.
+--keep: 1297 people remaining.
+Using 1 thread (no multithreaded calculations invoked).
+Before main variant filters, 1297 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+Total genotyping rate in remaining samples is 0.918075.
+108082 variants and 1297 people pass filters and QC.
+Note: No phenotypes present.
+--make-bed to
+Methow_RAD_chroms_noIndels_minDP15_maxDP40_minGQ20_minGenDP6_maxMiss0.7_maf0.01_noParalogs_maxMiss0.8.recode_PLINK_filtered.bed
++
+Methow_RAD_chroms_noIndels_minDP15_maxDP40_minGQ20_minGenDP6_maxMiss0.7_maf0.01_noParalogs_maxMiss0.8.recode_PLINK_filtered.bim
++
+Methow_RAD_chroms_noIndels_minDP15_maxDP40_minGQ20_minGenDP6_maxMiss0.7_maf0.01_noParalogs_maxMiss0.8.recode_PLINK_filtered.fam
+... done.
+
+End time: Thu Aug 21 15:38:39 2025

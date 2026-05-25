@@ -1,0 +1,188 @@
+---
+title: "investigating_high_pvalue_GWAS_snps"
+author: "Anita Wray"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE)
+start_time <- Sys.time()
+knitr::opts_knit$set(root.dir ="~/Desktop/methow_steelhead/WGS/angsd_analysis/")
+library(tidyverse)
+library(qqman)
+library(patchwork)
+library(RColorBrewer)
+```
+
+```{r get snps}
+header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
+
+lrt_filt_2PC <- read_tsv("asso-results_2PCs_filtered.txt", col_names = header) %>%
+  mutate(CHR_POS = paste(Chromosome, Position, sep = "_"))
+new_chr_name <- read.delim("../chromosome_table.tsv", header = F, col.names = c("NCBI", "CHR_NUM"))
+
+lrt_filt_2PC <- merge(lrt_filt_2PC, new_chr_name, by.x = "Chromosome", by.y = "NCBI")
+#colnames(lrt) <- header
+df_filt_2PC <- lrt_filt_2PC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+    group_by(Chromosome) %>%
+    mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+    mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+
+(dfs_filt_2PC<- df_filt_2PC %>% arrange(-LRT) %>% head(n=20))
+
+
+sig_snps <- df_filt_2PC %>% arrange(-LRT) %>% subset(log10p > -log10(0.05/nrow(df_filt_2PC)))
+sig_snps$significance <- "significant"
+
+fifty_random <- df_filt_2PC[sample.int(nrow(df_filt_2PC), size = 50), ]
+fifty_random$significance <- "non-significant"
+
+sig_snps_w_random <- rbind(sig_snps, fifty_random)
+
+sig_snps_w_random$CHR_POS <- paste(sig_snps_w_random$Chromosome, sig_snps_w_random$Position, sep = "_")
+```
+
+```{r plot snp depths, include=FALSE}
+
+positions <- read.delim("../combined_snp_order_and_depth.pos", 
+                        header = F, col.names = c("Chromosome", "Position", "TotDepth")) %>%
+  mutate(CHR_POS = paste(Chromosome, Position, sep = "_"))
+
+
+depth <- read.delim("../combined_depth_counts.counts",
+                    header = T)
+depth$avg_depth <- rowMeans(depth)
+
+depth_and_pos <- cbind(positions, depth) %>% 
+  subset(CHR_POS %in% sig_snps_w_random$CHR_POS)
+
+write.csv(depth_and_pos, "sig_snps_w_random_read_depth.csv")
+
+#depth_and_pos <- read.csv("sig_snps_w_random_read_depth.csv")
+```
+
+```{r plot read depth per snp}
+ 
+
+lrt_useful <- lrt_filt_2PC %>%
+  select(c('CHR_POS','LRT'))
+
+depth_and_pos <- merge(depth_and_pos, lrt_useful, all.x = TRUE) %>%
+  arrange(desc(LRT))
+
+depth_and_pos <- merge(depth_and_pos, sig_snps_w_random)
+
+ggplot(data = depth_and_pos, aes(x = CHR_POS, y = avg_depth, color = LRT, shape = significance)) +
+  geom_point() +
+  theme_classic() +
+  scale_color_viridis_c()
+
+#depth_and_pos
+```
+Now for the maf per snp
+```{r plot maf per snp}
+
+mafs <- read.delim("../combined_mafs.mafs", 
+                   header = F, col.names = c("chromo",	'position',	'major',	'minor',	'ref',	'knownEM',	'nInd')) %>%
+  mutate(CHR_POS = paste(chromo, position, sep = "_"))
+
+mafs_plot_df <- merge(depth_and_pos, mafs, all.x = T)
+
+ggplot(data = mafs_plot_df, aes(x = CHR_POS, y = ref, color = LRT, shape = significance)) +
+  geom_point() +
+  theme_classic() +
+  scale_color_viridis_c() +
+  ylab("maf")+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+```
+Finally, plot the phenoype versus the genotype
+```{r eval=FALSE, include=FALSE}
+#get the snps we want
+write_delim(sig_snps_w_random[,1:2], file = 'sig_snps_filter_file.txt') 
+
+
+genotypes <- read.delim("concatenated_genotypes_sig_snps_only.geno", header = F) %>%
+  mutate(sample = paste(V1, V2, sep = "_"))
+phenotypes <- read.delim("growth_pheno.txt", header = F)
+sample_names <- read.delim("bamlist.txt", header = F)
+treatment <- read.delim("sample_table.tsv")
+
+sample_names$V1 <- gsub("/scratch2/awray/methow/bams/", "", sample_names$V1)
+sample_names$V1 <- gsub(".bam", "", sample_names$V1)
+
+colnames(sample_names) <- "sample_name"
+colnames(phenotypes) <- 'growth'
+
+snp_order <- genotypes$sample 
+
+
+flipped_genotypes <- as.data.frame(t(genotypes), colnames = F, row.names = F) %>%
+  slice(3:245)
+
+colnames(flipped_genotypes) <- snp_order
+
+flipped_genotypes <- cbind(sample_names, flipped_genotypes)
+flipped_genotypes <- cbind(flipped_genotypes, phenotypes)
+
+flipped_genotypes <- merge(flipped_genotypes, treatment)
+
+
+SNP <- "CM046581.1_101296291"
+
+
+loop.vector <- 2:5
+
+top_10 <- sig_snps %>%
+  arrange(desc(LRT))
+
+top_10 <- top_10[1:10,]
+
+top_10_genotypes <- flipped_genotypes[,c("sample_name",top_10$CHR_POS, "growth", 'population')]
+
+x_cols <- colnames(flipped_genotypes)
+x_cols <- x_cols[-1]
+x_cols <- x_cols[-length(x_cols)]
+
+pdf(file = "genotypes_per_sig_snps.pdf")
+for (col in x_cols) {
+p <- ggplot(data = flipped_genotypes, aes(x = .data[[col]], y = growth, color = population)) +
+  geom_point() +
+  theme_classic()
+  
+ print(p)
+  # Optional: add a pause to view each plot
+  #Sys.sleep(2)
+
+}
+dev.off()
+
+
+
+x_cols <- colnames(top_10_genotypes)
+x_cols <- x_cols[-1]
+x_cols <- x_cols[-11]
+
+pdf(file = "top_10_genotypes_per_sig_snps.pdf")
+for (col in x_cols) {
+p <- ggplot(data = top_10_genotypes, aes(x = .data[[col]], y = growth, color = population)) +
+  geom_point() +
+  theme_classic()
+  
+ print(p)
+  # Optional: add a pause to view each plot
+  #Sys.sleep(2)
+
+}
+dev.off()
+
+flipped_genotypes$SNP
+```
+

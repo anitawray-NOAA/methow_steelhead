@@ -7,9 +7,12 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(message = FALSE)
 start_time <- Sys.time()
-knitr::opts_knit$set(root.dir ="~/Desktop/methow_steelhead/WGS/")
+knitr::opts_knit$set(root.dir ="~/Desktop/methow_steelhead/WGS/angsd_analysis/")
+knitr::opts_knit$set(fig.width = 14)
 library(tidyverse)
 library(qqman)
+library(patchwork)
+library(RColorBrewer)
 ```
 
 ```{r read in files - noPC - filtered}
@@ -19,39 +22,53 @@ header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',
 
 lrt_filt_noPC <- read_tsv("noPCs_filtered_asso_results.txt", col_names = header)
 
+new_chr_name <- read.delim("../chromosome_table.tsv", header = F, col.names = c("NCBI", "CHR_NUM"))
+new_chr_name$CHR_NUM <- as.factor(new_chr_name$CHR_NUM)
+
+lrt_filt_noPC <- merge(lrt_filt_noPC, new_chr_name, by.x = "Chromosome", by.y = "NCBI", all = TRUE)
+
 #colnames(lrt) <- header
+df_filt_noPC <- lrt_filt_noPC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+    group_by(Chromosome) %>%
+    mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+    mutate(BHfdrchrom = p.adjust(p, method = "BH"))
 
-#remove the values that are not -999 and that are negative
-lrt_filt_noPC_filt <- lrt_filt_noPC %>%
-  subset(LRT != -999) %>%
-  subset(LRT > 0)
 
-# and save that into stored_results
-#write_rds(lrt_filt, file = "assoc-lrts-filtered-2PCs.rds", compress = "xz")
+(dfs_filt_noPC<- df_filt_noPC %>% arrange(-LRT) %>% head(n=20))
+
+sig_snps <- df_filt_noPC %>% arrange(-LRT) %>% subset(log10p > -log10(0.05/nrow(df_filt_noPC)))
+write.csv(sig_snps, file = "filt_noPC_WGS_sig_snps.csv")
 ```
 
-```{r p-values & plotting - noPC - filtered}
-lrt_filt_noPC_filt$SNP<-paste("r",1:length(lrt_filt_noPC_filt$Chromosome), sep="")
-#get pvalues
-lrt_filt_noPC_filt$pvalue<-pchisq(lrt_filt_noPC_filt$LRT, df=1, lower=F)
-lrt_filt_noPC_filt$adj_pvalue <- p.adjust(lrt_filt_noPC_filt$pvalue, method = "bonferroni")
+```{r p-values & plotting - noPC - filtered, fig.height=4, fig.width=12}
+color_group <- rep(c("lightgrey", "black"), length.out = 29)
 
-chrom_numbers <- read_tsv("chromosome_table.tsv", col_names = c('Chromosome','CHR_NUM'))
-
-lrt_filt_noPC_filt <- merge(lrt_filt_noPC_filt, chrom_numbers)
-# note, we name the column abs_diff to be compatible with our plotting functions
-# but will rename the axis to "negative log10 p-value".
-
-newp <- 0.01/nrow(lrt_filt_noPC)
+qqnorm(df_filt_noPC$p)
 
 
-#lrt_filt_noPC_filt <- lrt_filt_noPC_filt %>%
-#  subset(adj_pvalue >= 2.981861e-303)
-
-qqnorm(lrt_filt_noPC_filt$pvalue)
-
-manhattan(lrt_filt_noPC_filt, chr="CHR_NUM", bp="Position", 
-          p="LRT", genomewideline = newp)
+(filt_noPC_plot <- ggplot(df_filt_noPC) +
+  geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_hline(yintercept = -log10(0.05/nrow(df_filt_noPC)), col="black", linetype=2, alpha=0.5) +
+  theme_bw() +
+  #scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("filt_noPC") +
+  theme(plot.title = element_text(hjust=0.5) ) +
+  theme(plot.subtitle = element_text(hjust=0.5),
+        panel.spacing = unit(0, "cm"),
+        panel.border = element_blank()) +
+  facet_wrap(.~CHR_NUM, ncol = 29, scales="free_x") +
+  scale_color_manual(values=color_group) +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank()))
 
 ```
 
@@ -59,37 +76,50 @@ manhattan(lrt_filt_noPC_filt, chr="CHR_NUM", bp="Position",
 header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
 
 lrt_filt_2PC <- read_tsv("asso-results_2PCs_filtered.txt", col_names = header)
+new_chr_name <- read.delim("../chromosome_table.tsv", header = F, col.names = c("NCBI", "CHR_NUM"))
 
-#colnames(lrt_filt_2PC) <- header
+lrt_filt_2PC <- merge(lrt_filt_2PC, new_chr_name, by.x = "Chromosome", by.y = "NCBI")
+#colnames(lrt) <- header
+df_filt_2PC <- lrt_filt_2PC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+    group_by(Chromosome) %>%
+    mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+    mutate(BHfdrchrom = p.adjust(p, method = "BH"))
 
-#remove the values that are not -999 and that are negative
-lrt_filt_2PC_filt <- lrt_filt_2PC %>%
-  subset(LRT != -999) %>%
-  subset(LRT > 0)
 
-# and save that into stored_results
-#write_rds(lrt_filt_2PC_filt, file = "assoc-lrt_filt_2PCs-filtered-2PCs.rds", compress = "xz")
+(dfs_filt_2PC<- df_filt_2PC %>% arrange(-LRT) %>% head(n=20))
+
+
+sig_snps <- df_filt_2PC %>% arrange(-LRT) %>% subset(log10p > -log10(0.05/nrow(df_filt_2PC)))
+write.csv(sig_snps, file = "filt_2PC_WGS_sig_snps.csv")
 ```
 
 ```{r p-values & plotting - 2PC - filtered}
-lrt_filt_2PC_filt$SNP<-paste("r",1:length(lrt_filt_2PC_filt$Chromosome), sep="")
-#get pvalues
-lrt_filt_2PC_filt$pvalue<-pchisq(lrt_filt_2PC_filt$LRT, df=1, lower=F)
-lrt_filt_2PC_filt$adj_pvalue <- p.adjust(lrt_filt_2PC_filt$pvalue, method = "bonferroni")
 
-chrom_numbers <- read_tsv("chromosome_table.tsv", col_names = c('Chromosome','CHR_NUM'))
+color_group <- rep(c("lightgrey", "black"), length.out = 29)
 
-lrt_filt_2PC_filt <- merge(lrt_filt_2PC_filt, chrom_numbers)
-# note, we name the column abs_diff to be compatible with our plotting functions
-# but will rename the axis to "negative log10 p-value".
-
-newp <- 0.01/nrow(lrt_filt_2PC)
-
-
-#lrt_filt_2PC_filt <- lrt_filt_2PC_filt %>%
-#  subset(adj_pvalue >= 2.981861e-303)
-
-qqnorm(lrt_filt_2PC_filt$pvalue)
+(filt_2PC_plot <- ggplot(df_filt_2PC) +
+  geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_hline(yintercept = -log10(0.05/nrow(df_filt_2PC)), col="black", linetype=2, alpha=0.5) +
+  theme_bw() +
+  #scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=color_group) +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("filt_2PC") +
+  theme(plot.title = element_text(hjust=0.5) ) +
+  theme(plot.subtitle = element_text(hjust=0.5),
+        panel.spacing = unit(0, "cm"),
+        panel.border = element_blank()) +
+  facet_wrap(.~CHR_NUM, ncol = 29, scales="free_x") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank()))
 ```
 
 ```{r read in files - 2PC - NOTfiltered}
@@ -97,73 +127,95 @@ header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',
 
 lrt_nofilt_2PC <- read_tsv("asso-results-2PCs.txt", col_names = header)
 
-#colnames(lrt_nofilt_2PC) <- header
+new_chr_name <- read.delim("../chromosome_table.tsv", header = F, col.names = c("NCBI", "CHR_NUM"))
 
-#remove the values that are not -999 and that are negative
-lrt_nofilt_2PC_filt <- lrt_nofilt_2PC %>%
-  subset(LRT != -999) %>%
-  subset(LRT > 0)
+lrt_nofilt_2PC <- merge(lrt_nofilt_2PC, new_chr_name, by.x = "Chromosome", by.y = "NCBI")
 
-# and save that into stored_results
-#write_rds(lrt_nofilt_2PC_filt, file = "assoc-lrt_nofilt_2PCs-filtered-2PCs.rds", compress = "xz")
+#colnames(lrt) <- header
+df_nofilt_2PC <- lrt_nofilt_2PC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+    group_by(Chromosome) %>%
+    mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+    mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+
+(dfs_nofilt_2PC<- df_nofilt_2PC %>% arrange(-LRT) %>% head(n=20))
 ```
 
 ```{r p-values & plotting - 2PC - NOTfiltered}
-lrt_nofilt_2PC_filt$SNP<-paste("r",1:length(lrt_nofilt_2PC_filt$Chromosome), sep="")
-#get pvalues
-lrt_nofilt_2PC_filt$pvalue<-pchisq(lrt_nofilt_2PC_filt$LRT, df=1, lower=F)
-lrt_nofilt_2PC_filt$adj_pvalue <- p.adjust(lrt_nofilt_2PC_filt$pvalue, method = "bonferroni")
+color_group <- rep(c("lightgrey", "black"), length.out = 29)
 
-chrom_numbers <- read_tsv("chromosome_table.tsv", col_names = c('Chromosome','CHR_NUM'))
+qqnorm(df_filt_2PC$p)
 
-lrt_nofilt_2PC_filt <- merge(lrt_nofilt_2PC_filt, chrom_numbers)
-# note, we name the column abs_diff to be compatible with our plotting functions
-# but will rename the axis to "negative log10 p-value".
-
-newp <- 0.01/nrow(lrt_nofilt_2PC)
-
-
-lrt_nofilt_2PC_filt <- lrt_nofilt_2PC_filt %>%
-  subset(adj_pvalue >= 2.981861e-303)
-
-qqnorm(lrt_nofilt_2PC_filt$pvalue)
+(nofilt_2PC_plot <- ggplot(df_nofilt_2PC) +
+  geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_hline(yintercept = -log10(0.05/nrow(df_nofilt_2PC)), col="black", linetype=2, alpha=0.5) +
+  theme_bw() +
+  #scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=color_group) +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("nofilt_2PC") +
+  theme(plot.title = element_text(hjust=0.5) ) +
+  theme(plot.subtitle = element_text(hjust=0.5),
+        panel.spacing = unit(0, "cm"),
+        panel.border = element_blank()) +
+  facet_wrap(.~CHR_NUM, ncol = 29, scales="free_x") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank()))
 ```
 
 ```{r read in files - noPC - NOTfiltered}
 header <- c('Chromosome',	'Position',	'Major',	'Minor',	'Frequency',	'N',	'LRT',	'high_WT/HE/HO')
 
-lrt_nofilt_noPC <- read_tsv("asso-results.txt", col_names = header)
+lrt_nofilt_noPC <- read_tsv("noPCs_nofilter_asso-results.txt", col_names = header)
 
-#colnames(lrt_nofilt_noPC) <- header
+new_chr_name <- read.delim("../chromosome_table.tsv", header = F, col.names = c("NCBI", "CHR_NUM"))
 
-#remove the values that are not -999 and that are negative
-lrt_nofilt_noPC_filt <- lrt_nofilt_noPC %>%
-  subset(LRT != -999) %>%
-  subset(LRT > 0)
+lrt_nofilt_noPC <- merge(lrt_nofilt_noPC, new_chr_name, by.x = "Chromosome", by.y = "NCBI")
 
-# and save that into stored_results
-#write_rds(lrt_nofilt_noPC_filt, file = "assoc-lrt_nofilt_noPCs-filtered-2PCs.rds", compress = "xz")
+#colnames(lrt) <- header
+df_nofilt_noPC <- lrt_nofilt_noPC %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+    group_by(Chromosome) %>%
+    mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+    mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+
+(dfs_nofilt_noPC<- df_nofilt_noPC %>% arrange(-LRT) %>% head(n=20))
 ```
 
 ```{r p-values & plotting - noPC - NOTfiltered}
-lrt_nofilt_noPC_filt$SNP<-paste("r",1:length(lrt_nofilt_noPC_filt$Chromosome), sep="")
-#get pvalues
-lrt_nofilt_noPC_filt$pvalue<-pchisq(lrt_nofilt_noPC_filt$LRT, df=1, lower=F)
-lrt_nofilt_noPC_filt$adj_pvalue <- p.adjust(lrt_nofilt_noPC_filt$pvalue, method = "bonferroni")
+color_group <- rep(c("lightgrey", "black"), length.out = 29)
 
-chrom_numbers <- read_tsv("chromosome_table.tsv", col_names = c('Chromosome','CHR_NUM'))
-
-lrt_nofilt_noPC_filt <- merge(lrt_nofilt_noPC_filt, chrom_numbers)
-# note, we name the column abs_diff to be compatible with our plotting functions
-# but will rename the axis to "negative log10 p-value".
-
-newp <- 0.01/nrow(lrt_nofilt_noPC)
-
-
-lrt_nofilt_noPC_filt <- lrt_nofilt_noPC_filt %>%
-  subset(adj_pvalue >= 2.981861e-303)
-
-qqnorm(lrt_nofilt_noPC_filt$pvalue)
+(nofilt_noPC_plot <- ggplot(df_nofilt_noPC) +
+  geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_hline(yintercept = -log10(0.05/nrow(df_nofilt_noPC)), col="black", linetype=2, alpha=0.5) +
+  theme_bw() +
+  #scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=color_group) +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("nofilt_noPC") +
+  theme(plot.title = element_text(hjust=0.5) ) +
+  theme(plot.subtitle = element_text(hjust=0.5),
+        panel.spacing = unit(0, "cm"),
+        panel.border = element_blank()) +
+  facet_wrap(.~CHR_NUM, ncol = 29, scales="free_x") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank()))
 ```
 
 
@@ -172,16 +224,9 @@ In order:
 2. filtered SNPs - no PCs
 3. no filter - 2 PCs
 4. filtered SNPs - 2 PCs
-```{r echo=TRUE, fig.width=11}
-manhattan(lrt_nofilt_noPC_filt, chr="CHR_NUM", bp="Position", 
-          p="adj_pvalue", genomewideline = newp)
+```{r echo=TRUE, fig.width=14}
+filt_noPC_plot/filt_2PC_plot
 
-manhattan(lrt_filt_noPC_filt, chr="CHR_NUM", bp="Position", 
-          p="adj_pvalue", genomewideline = newp)
-manhattan(lrt_nofilt_2PC_filt, chr="CHR_NUM", bp="Position", 
-          p="adj_pvalue", genomewideline = newp)
-manhattan(lrt_filt_2PC_filt, chr="CHR_NUM", bp="Position", 
-          p="adj_pvalue", genomewideline = newp)
 ```
 
 
